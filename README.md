@@ -6,10 +6,10 @@ TennisPoint is tennis hawk-eye system (Electronic Line Calling) based on monocul
 * judge in or out according to the relative position between the bouncing point and the court side line in the 2D image
 
 ## TODO
-*[ ] ball's trajectory detection
-*[ ] bouncing point prediction
-*[ ] in/out judgement
-*[ ] datasets test
+* [ ] ball's trajectory detection
+* [ ] bouncing point prediction
+* [ ] in/out judgement
+* [ ] datasets test
 
 
 ## Dataset
