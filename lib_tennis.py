@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
-import datetime,time,sys,os,random,json,re,io,copy
-import cv2
+import cv2,os
+import copy
 import numpy as np
 from lmfit.models import GaussianModel, LorentzianModel, LinearModel, PolynomialModel
 from lmfit.printfuncs import getfloat_attr
@@ -26,9 +26,9 @@ def debug_res_phase(res_phase1,phase_name,out_img=None,max_width=640):
         raw_frame = copy.deepcopy(res_phase1[0]['frame'])
         frame_resize,ratio = np_resize_max_size(r['frame'],max_width)
         for r_ball in r[phase_name]:
-            cv2.circle(frame_resize, (int(r_ball[0]*ratio), int(r_ball[1]*ratio)), 4, (0, 0, 255), thickness=-1)
+            cv2.circle(frame_resize, (int(r_ball[0][0]*ratio), int(r_ball[0][1]*ratio)), 4, (0, 0, 255), thickness=-1)
             if out_img is not None:
-                cv2.circle(raw_frame, (int(r_ball[0]), int(r_ball[1])), 3, (0, 255, 255), thickness=-1)
+                cv2.circle(raw_frame, (int(r_ball[0][0]), int(r_ball[0][1])), 3, (0, 255, 255), thickness=-1)
         cv2.imshow("detection", frame_resize)
         if cv2.waitKey(110) & 0xff == 27:
             break
@@ -54,9 +54,10 @@ def debug_res_final(res_phase1,curve_list,bounce_point,out_img=None):
 
 
     if out_img is not None:
-        cv2.circle(raw_frame, (bounce_point[0], bounce_point[1]), 4, (255, 0, 0), thickness=-1)
+        cv2.circle(raw_frame, (bounce_point[0], bounce_point[1]), 5, (255, 0, 0), thickness=-1)
         cv2.imwrite(out_img,raw_frame)
     return
+
 
 def get_the_bounce_point(curve_list,h):
     [curve_up, curve_down] = curve_list
@@ -67,6 +68,18 @@ def get_the_bounce_point(curve_list,h):
     #print('up',len(points_up),points_up)
     x = (int)((points_down[-1][0]+points_up[0][0])/2)
     y = h-(int)((points_down[-1][1]+points_up[0][1])/2)
+    print('mid:',x,y)
+
+    min_delta = 1000
+    for xs in range(points_down[-1][0]-5,points_up[0][0]+5):
+        y_up_eval = curve_up[4].eval(x=np.array([xs]))[0]
+        y_down_eval = curve_down[4].eval(x=np.array([xs]))[0]
+        if abs(y_down_eval-y_up_eval)<min_delta:
+            min_delta = abs(y_down_eval-y_up_eval)
+            x = xs
+            y = h-int((y_down_eval+y_up_eval)/2)
+    print('end:',x,y,min_delta)
+
     return (x,y)
 
 def int_xy_data(res_phase,phase_name):
@@ -75,7 +88,8 @@ def int_xy_data(res_phase,phase_name):
     for r in res_phase:
         h,w,_=r['frame'].shape
         for r_ball in r[phase_name]:
-            ps_list.append((int(r_ball[0]),int(h-r_ball[1])))
+            x,y = int(r_ball[0][0]),int(h-r_ball[0][1])
+            ps_list.append((x,y))
 
     return ps_list
 
@@ -141,7 +155,7 @@ def fit_curve(ps_list):
     pars = mod.guess(y, x=x)
     bestresult = mod.fit(y, pars, x=x)
 
-    return (bestresult.best_fit,x,y,getfloat_attr(bestresult, 'chisqr'))
+    return (bestresult.best_fit,x,y,getfloat_attr(bestresult, 'chisqr'),bestresult)
 
 def fit_curve_not(ps_list):
     #--input:ps_list, (x,y)
