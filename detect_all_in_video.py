@@ -1,5 +1,7 @@
-# coding:utf8
-import cv2,sys,copy,json
+# -*- coding: utf-8 -*-
+#------------------------------------------------------------
+
+import time,os,sys,json,glob,copy,random,hashlib,cv2
 import numpy as np
 import lib_tennis
 
@@ -93,7 +95,7 @@ def get_phase1_from_motion_and_ball(res_motion,res_ball):
     for r_ball in res_ball:
         for r_motion in res_motion:
             if r_ball[0]>=r_motion[0] and r_ball[1]>=r_motion[1] and r_ball[0]<=r_motion[2] and r_ball[1]<=r_motion[3]:
-                r_final.append(r_ball)
+                r_final.append((r_ball,r_motion))
                 break
 
     return r_final
@@ -129,7 +131,7 @@ def detect_ball_phase1(video_file,history=5):
         #--get phase1 detected ball
         res = get_phase1_from_motion_and_ball(new_row['motion_detect'],new_row['ball_detect'])
         if len(res)==1:
-            new_row['phase1'].append((res[0][0], res[0][1]))
+            new_row['phase1'].append(res[0])
 
         res_list.append(new_row)
 
@@ -137,11 +139,7 @@ def detect_ball_phase1(video_file,history=5):
 
     return res_list
 
-
-
-def detect_ball_phase2(res_phase1):
-    points_list = lib_tennis.int_xy_data(res_phase1, 'phase1')
-
+def get_curve_list_of_three_parts(points_list):
     #--把phase1的点分为3部分，下降，上升，不确定
     p_up,p_down,p_not = lib_tennis.split_to_3_parts(points_list)
     print('--->',len(points_list),len(p_down),len(p_not),len(p_up))
@@ -153,9 +151,46 @@ def detect_ball_phase2(res_phase1):
 
     curve_list = [curve_up,curve_not,curve_down]
 
+    return curve_list
+
+
+def detect_ball_phase2(res_phase1,F_min=4):
+    #--得到所有phase1点
+    points_list = lib_tennis.int_xy_data(res_phase1, 'phase1')
+    print('--->points_list:',points_list)
+
+    #--拟合上升期、下降期、不确定性三部分曲线
+    curve_list = get_curve_list_of_three_parts(points_list)
     #lib_tennis.plot_curve(curve_list)
 
+    curve_up, curve_not, curve_down = curve_list
+
     #--判断motion_detect区域，不在phase1中，但是在拟合曲线附近，则加上
+    for r in res_phase1:
+        for r_motion in r['motion_detect']:
+            x_center = int((r_motion[0]+r_motion[2])/2)
+            y_center = int((r_motion[1]+r_motion[3])/2)
+            already_in_phase1 = False
+            for r_ball in r['phase1']:
+                x2_center = int((r_ball[1][0] + r_ball[1][2]) / 2)
+                y2_center = int((r_ball[1][1] + r_ball[1][3]) / 2)
+                if x_center==x2_center and y_center==y2_center:
+                    already_in_phase1 = True
+                    break
+            if already_in_phase1==True:
+                break
+
+            for r_curve in (curve_up,curve_down):
+                min_y, max_y = min(r_curve[2]), max(r_curve[2])
+                if y_center>min_y and y_center<max_y:
+                    y_eval = r_curve[4].eval(x=np.array([x_center]))[0]
+                    if abs(y_center-y_eval)<F_min:
+                        print('---->add:',x_center,y_center,y_eval)
+                        points_list.append((x_center,y_center))
+
+    #--再次拟合上升期、下降期、不确定性三部分曲线
+    #curve_list = get_curve_list_of_three_parts(points_list)
+    #lib_tennis.plot_curve(curve_list)
 
 
     return res_phase1,curve_list
@@ -164,14 +199,22 @@ def detect_ball_phase2(res_phase1):
 def detect_ball_in_video(video_file):
     #--res_phase1, frame: motion_detect: ball_detect: phase1_ball:
     res_phase1 = detect_ball_phase1(video_file, history=5)
-    lib_tennis.debug_res_phase(res_phase1,phase_name='phase1',out_img='phase1.jpg')
+    #lib_tennis.debug_res_phase(res_phase1,phase_name='phase1',out_img='phase1.jpg')
 
     res_phase2,curve_list = detect_ball_phase2(res_phase1)
     #debug_res_phase(res_phase2,phase_name='phase2',out_img='phase2.jpg')
 
     return res_phase2,curve_list
 
-def find_bounce_point(res_phase2,curve_list):
+def get_split_of_one_file(row):
+    root_dir, fname = os.path.split(row)
+    x = fname.split('.')
+    base_name = fname[:-(len(x[-1]) + 1)]
+    f_type = x[-1]
+    return  (root_dir,base_name,f_type)
+
+
+def find_bounce_point(video_file,res_phase2,curve_list):
     #--找到final_curve_down and final_curve_up
     final_curve_down,final_curve_up = lib_tennis.find_best_two_curve(curve_list)
     curve_list = [final_curve_up,final_curve_down]
@@ -181,13 +224,15 @@ def find_bounce_point(res_phase2,curve_list):
     h,w,_ = res_phase2[0]['frame'].shape
     bounce_point = lib_tennis.get_the_bounce_point(curve_list,h)
 
-    lib_tennis.debug_res_final(res_phase2,curve_list,bounce_point,out_img='phase_final.jpg')
+    root_dir, base_name, f_type = get_split_of_one_file(video_file)
+    lib_tennis.debug_res_final(res_phase2,curve_list,bounce_point,out_img=base_name+'.jpg')
 
     return
 
+
 def main(video_file):
     res_phase2,curve_list = detect_ball_in_video(video_file)
-    find_bounce_point(res_phase2,curve_list)
+    find_bounce_point(video_file,res_phase2,curve_list)
 
 if __name__ == '__main__':
     from fire import Fire
