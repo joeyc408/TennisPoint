@@ -1,6 +1,6 @@
 # TennisPoint
 TennisPoint is tennis hawk-eye system (Electronic Line Calling) based on monocular vision.
-![T](./0301_slow_in-hard.jpg)
+![T](https://gitee.com/joeychennn/TennisPoint/blob/master/0301_slow_in-hard.jpg)
 
 ## The procedure is as follows 
 * locate tennis ball’s trajectory in video
