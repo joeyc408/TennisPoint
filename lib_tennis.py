@@ -54,7 +54,7 @@ def debug_res_final(res_phase1,curve_list,bounce_point,out_img=None):
 
 
     if out_img is not None:
-        cv2.circle(raw_frame, (bounce_point[0], bounce_point[1]), 5, (255, 0, 0), thickness=-1)
+        cv2.circle(raw_frame, (bounce_point[0], bounce_point[1]), 9, (255, 0, 0), thickness=-1)
         cv2.imwrite(out_img,raw_frame)
     return
 
@@ -93,7 +93,7 @@ def int_xy_data(res_phase,phase_name):
 
     return ps_list
 
-def split_to_3_parts(ps_list,F_down_min_metric=2,F_down_offset=2,F_up_min_metric=3,F_up_offset=1):
+def split_to_3_parts(ps_list,F_down_min_metric=3,F_down_offset=2,F_up_min_metric=3,F_up_offset=1):
     p_up, p_down, p_not = [],[],[]
 
     #--input:ps_list, (x,y)
@@ -146,7 +146,6 @@ def split_to_3_parts(ps_list,F_down_min_metric=2,F_down_offset=2,F_up_min_metric
 
 
 def fit_curve(ps_list):
-    #--input:ps_list, (x,y)
     x = np.array([r[0] for r in ps_list])
     y = np.array([r[1] for r in ps_list])
 
@@ -165,12 +164,18 @@ def fit_curve_not(ps_list):
     return (y,x,y)
 
 
-def plot_curve(curve_list):
+def plot_curve(curve_list,res_phase1=None,bounce_point=None):
     import matplotlib.pyplot as plt
+
     for r_curve in curve_list:
         #r_curve[0].plot()
         plt.plot(r_curve[1], r_curve[0], 'r-')
         plt.scatter(r_curve[1], r_curve[2])
+    if bounce_point is not None and res_phase1 is not None:
+        raw_frame = copy.deepcopy(res_phase1[0]['frame'])
+        h, w, _ = raw_frame.shape
+        plt.scatter(bounce_point[0],h-bounce_point[1])
+
 
     plt.show()
 
